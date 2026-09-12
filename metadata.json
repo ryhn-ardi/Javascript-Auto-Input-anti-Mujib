@@ -1,0 +1,6 @@
+{
+  "name": "Rapor Auto-Fill Script Generator",
+  "description": "Generator skrip konsol browser otomatisasi pengisian nilai rapor dari Excel atau daftar kolom secara cepat dan fleksibel.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
