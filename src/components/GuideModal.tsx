@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Terminal, CheckCircle2, AlertTriangle, Lightbulb, Copy } from 'lucide-react';
+import { X, Terminal, AlertTriangle, Lightbulb, Columns, HelpCircle } from 'lucide-react';
 
 interface GuideModalProps {
   isOpen: boolean;
@@ -33,6 +33,17 @@ export const GuideModal: React.FC<GuideModalProps> = ({ isOpen, onClose }) => {
 
         {/* Body */}
         <div className="p-6 overflow-y-auto space-y-6 text-sm">
+          {/* Multi-column highlight callout */}
+          <div className="p-3.5 bg-blue-950/40 rounded-xl border border-blue-800/50 space-y-1.5">
+            <div className="flex items-center gap-2 text-blue-300 font-bold text-xs uppercase tracking-wide">
+              <Columns className="w-4 h-4 text-blue-400" />
+              Mengatasi Masalah Nilai Acak (A1-A2-B1-B2) di e-Rapor
+            </div>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Jika tabel rapor Anda memiliki <strong>2 sampai 5 kolom nilai per siswa</strong> (misalnya TP 1, TP 2, STS, SAS), pastikan gunakan tab <strong className="text-emerald-400">"Target 1 Kolom"</strong>. Tentukan total kolom per siswa dan klik kolom target (misal Kolom 2). Skrip akan mengisi baris siswa secara vertikal khusus kolom tersebut, <strong>tanpa mengubah ataupun merusak nilai yang sudah tersimpan di Kolom 1</strong>.
+            </p>
+          </div>
+
           {/* Step list */}
           <div className="space-y-4">
             <div className="flex gap-3">
@@ -40,9 +51,9 @@ export const GuideModal: React.FC<GuideModalProps> = ({ isOpen, onClose }) => {
                 1
               </div>
               <div>
-                <h4 className="font-semibold text-slate-200">Copy Skrip</h4>
+                <h4 className="font-semibold text-slate-200">Pilih Kolom & Copy Skrip</h4>
                 <p className="text-slate-400 text-xs mt-0.5">
-                  Klik tombol hijau <strong className="text-emerald-400">"Copy Skrip ke Clipboard"</strong> di aplikasi ini setelah memasukkan daftar nilai.
+                  Atur Total Kolom (misal 3) dan pilih Kolom Target (misal Kolom 2). Paste daftar nilai Anda, lalu klik tombol hijau <strong className="text-emerald-400">"Copy Skrip ke Clipboard"</strong>.
                 </p>
               </div>
             </div>
@@ -54,7 +65,7 @@ export const GuideModal: React.FC<GuideModalProps> = ({ isOpen, onClose }) => {
               <div>
                 <h4 className="font-semibold text-slate-200">Buka Halaman Rapor & Buka DevTools</h4>
                 <p className="text-slate-400 text-xs mt-0.5">
-                  Buka halaman web e-Rapor (Kurikulum Merdeka, K13, ARD, dsb.) tempat kolom nilai berada.
+                  Buka halaman web e-Rapor (Kurikulum Merdeka, K13, ARD, dsb.) tempat tabel nilai berada.
                   Tekan tombol <kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-white font-mono text-[11px]">F12</kbd> di keyboard, atau klik kanan di mana saja lalu pilih <strong className="text-slate-300">"Inspeksi" (Inspect)</strong>.
                 </p>
               </div>
@@ -84,9 +95,9 @@ export const GuideModal: React.FC<GuideModalProps> = ({ isOpen, onClose }) => {
                 4
               </div>
               <div>
-                <h4 className="font-semibold text-slate-200">Tekan Enter & Duduk Santai</h4>
+                <h4 className="font-semibold text-slate-200">Tekan Enter & Pantau Hasil</h4>
                 <p className="text-slate-400 text-xs mt-0.5">
-                  Tekan <kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-white font-mono text-[11px]">ENTER</kbd>. Browser akan mengisi nilai satu per satu secara berurutan disertai jeda simpan. Anda dapat melihat progresnya langsung di layar dan log console.
+                  Tekan <kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-white font-mono text-[11px]">ENTER</kbd>. Browser akan mengisi kolom target secara otomatis ke bawah dengan aman.
                 </p>
               </div>
             </div>
@@ -100,10 +111,10 @@ export const GuideModal: React.FC<GuideModalProps> = ({ isOpen, onClose }) => {
             </h5>
             <ul className="text-xs text-slate-300 space-y-2 list-disc list-inside">
               <li>
-                <strong>Offset Input Teratas:</strong> Jika nilai pertama malah masuk ke kolom pencarian atau filter mata pelajaran, atur nilai <span className="text-blue-400 font-mono">Offset</span> (misal: 1, 2, atau 3) agar skrip melompati kolom non-nilai tersebut.
+                <strong>Offset Input Teratas:</strong> Jika nilai pertama malah masuk ke kolom pencarian atau filter siswa di atas tabel, atur nilai <span className="text-blue-400 font-mono">Offset</span> (misal: 1, 2, atau 3) agar skrip melompati kolom non-nilai tersebut.
               </li>
               <li>
-                <strong>Jeda Simpan (Delay):</strong> Jika sistem e-Rapor sekolah Anda lambat atau otomatis menyimpan via AJAX/server, gunakan jeda simpan <strong>1500ms - 2000ms</strong> agar server tidak error / timeout.
+                <strong>Jeda Simpan (Delay):</strong> Jika sistem e-Rapor sekolah Anda otomatis menyimpan via AJAX/server, gunakan jeda simpan <strong>1200ms - 2000ms</strong> agar server tidak error / timeout.
               </li>
               <li>
                 <strong>Format Desimal:</strong> Jika rapor menolak titik desimal (misal 85.5 tidak valid), ubah pengaturan desimal ke <strong>Koma (85,5)</strong> di menu Pengaturan Lanjutan.

@@ -1,4 +1,4 @@
-import { ScoreItem, ScoreStats, ScriptOptions } from '../types';
+import { ScoreItem, ScoreStats, ScriptOptions, MultiColumnEntry } from '../types';
 
 /**
  * Parses raw text copied from Excel columns, CSV, or spaces into numeric scores.
@@ -13,7 +13,7 @@ export function parseRawScores(rawText: string): { items: ScoreItem[]; validValu
     };
   }
 
-  // Check if pasted lines look like Excel rows (tab-separated or newline-separated)
+  // Check if pasted lines look like Excel rows
   const lines = rawText.split(/\r?\n/);
   const tokens: string[] = [];
 
@@ -21,20 +21,11 @@ export function parseRawScores(rawText: string): { items: ScoreItem[]; validValu
     const trimmedLine = line.trim();
     if (!trimmedLine) continue;
 
-    // If the line contains tabs (Excel multiple columns copied), check if the last token or number column has the score
+    // If the line contains tabs (Excel single or multiple columns), check parts
     if (trimmedLine.includes('\t')) {
       const parts = trimmedLine.split('\t').map((p) => p.trim()).filter(Boolean);
-      // Look for a part that looks like a score number
-      const scoreCandidate = parts.find((part) => {
-        const normalized = part.replace(',', '.');
-        return !isNaN(Number(normalized)) && normalized !== '';
-      });
-      if (scoreCandidate) {
-        tokens.push(scoreCandidate);
-      } else {
-        // Just push the last column or all columns
-        parts.forEach((p) => tokens.push(p));
-      }
+      // Look for parts that look like scores
+      parts.forEach((p) => tokens.push(p));
     } else if (trimmedLine.includes(';') || (trimmedLine.includes(',') && !trimmedLine.match(/^\d+,\d+$/))) {
       // Split by semicolon or comma-separated tokens (if not a standalone single comma decimal)
       const parts = trimmedLine.split(/[,;]+/).map((p) => p.trim()).filter(Boolean);
@@ -53,7 +44,7 @@ export function parseRawScores(rawText: string): { items: ScoreItem[]; validValu
   const items: ScoreItem[] = [];
   const validValues: number[] = [];
 
-  tokens.forEach((token, idx) => {
+  tokens.forEach((token) => {
     const cleanToken = token.trim();
     if (!cleanToken) return;
 
@@ -97,16 +88,59 @@ export function parseRawScores(rawText: string): { items: ScoreItem[]; validValu
 }
 
 /**
- * Builds the JavaScript console script to be pasted in browser devtools
+ * Parses multi-column raw text (e.g. from Excel multiple columns copied with tabs)
  */
-export function generateAutoFillScript(values: number[], options: ScriptOptions): string {
-  if (values.length === 0) {
-    return '// Silakan masukkan daftar nilai terlebih dahulu pada kolom input.';
+export function parseMultiColumnExcelText(rawText: string, totalColumns: number): MultiColumnEntry[] {
+  const lines = rawText.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  const result: MultiColumnEntry[] = [];
+
+  for (let c = 0; c < totalColumns; c++) {
+    result.push({
+      id: `col_${c + 1}`,
+      name: `Kolom ${c + 1}`,
+      rawText: '',
+      items: [],
+      validValues: [],
+    });
   }
 
+  const columnLines: string[][] = Array.from({ length: totalColumns }, () => []);
+
+  lines.forEach((line) => {
+    // If separated by tabs
+    const parts = line.split('\t');
+    for (let c = 0; c < totalColumns; c++) {
+      if (parts[c] !== undefined && parts[c].trim() !== '') {
+        columnLines[c].push(parts[c].trim());
+      }
+    }
+  });
+
+  for (let c = 0; c < totalColumns; c++) {
+    const textJoined = columnLines[c].join('\n');
+    const parsed = parseRawScores(textJoined);
+    result[c].rawText = textJoined;
+    result[c].items = parsed.items;
+    result[c].validValues = parsed.validValues;
+  }
+
+  return result;
+}
+
+/**
+ * Builds the JavaScript console script to be pasted in browser devtools
+ */
+export function generateAutoFillScript(
+  values: number[],
+  options: ScriptOptions,
+  multiColumnData?: MultiColumnEntry[]
+): string {
   const {
     offset,
     delayMs,
+    fillMode,
+    totalColumnsPerRow,
+    targetColumnIndex,
     customSelector,
     useCustomSelector,
     triggerEvents,
@@ -115,19 +149,43 @@ export function generateAutoFillScript(values: number[], options: ScriptOptions)
     logToConsole,
   } = options;
 
+  // Validation
+  if (fillMode === 'multi-columns') {
+    const hasData = multiColumnData && multiColumnData.some((c) => c.validValues.length > 0);
+    if (!hasData) {
+      return '// Silakan masukkan daftar nilai untuk kolom-kolom terlebih dahulu.';
+    }
+  } else if (values.length === 0) {
+    return '// Silakan masukkan daftar nilai terlebih dahulu pada kolom input.';
+  }
+
   const selectorStr = useCustomSelector && customSelector.trim()
     ? customSelector.trim()
     : 'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"])';
 
+  const isMultiTarget = fillMode === 'single-target';
+  const isMultiBatch = fillMode === 'multi-columns';
+
+  // Multi-column batch data formatting
+  const multiColArrayString = isMultiBatch && multiColumnData
+    ? JSON.stringify(multiColumnData.map((col) => col.validValues))
+    : '[]';
+
+  const columnHeaderDescription = isMultiTarget
+    ? `Target: Kolom ke-${targetColumnIndex} (dari Total ${totalColumnsPerRow} kolom per siswa)\n *  ⚠️ Kolom lainnya (1 s/d ${totalColumnsPerRow}) TIDAK AKAN DIGANGGU / TIDAK DITIMPA!`
+    : isMultiBatch
+    ? `Mode: Batch Multi-Kolom (${totalColumnsPerRow} Kolom per Siswa Sekaligus)`
+    : `Mode: 1 Kolom Tunggal Sejajar (${values.length} Siswa)`;
+
   return `/**
  * =======================================================
  *  Rapor Auto-Fill Script (Console Automation)
- *  Total Nilai: ${values.length} Siswa
- *  Jeda Simpan: ${delayMs} ms
- *  Offset Input: ${offset}
+ *  Total Nilai: ${isMultiBatch ? 'Multi-Kolom' : `${values.length} Siswa`}
+ *  ${columnHeaderDescription}
+ *  Jeda Simpan: ${delayMs} ms | Offset Awal: ${offset} input dilewati
  * =======================================================
  *  CARA PAKAI:
- *  1. Buka halaman pengisian nilai rapor di browser.
+ *  1. Buka halaman pengisian nilai rapor di browser (Google Chrome / Edge / Firefox).
  *  2. Tekan F12 atau Ctrl+Shift+I (Cmd+Option+I di Mac).
  *  3. Klik tab "Console".
  *  4. Paste seluruh kode di bawah ini lalu tekan ENTER.
@@ -136,29 +194,31 @@ export function generateAutoFillScript(values: number[], options: ScriptOptions)
  */
 
 (async function masukanNilaiOtomatis() {
-  const daftarNilai = ${JSON.stringify(values)};
   const OFFSET_AWAL = ${offset};
   const DELAY_MS = ${delayMs};
   const FORMAT_DESIMAL = '${decimalFormat}'; // 'dot', 'comma', atau 'original'
   const TARGET_SELECTOR = ${JSON.stringify(selectorStr)};
+  const MODE_PENGISIAN = '${fillMode}';
+  const TOTAL_KOLOM_PER_BARIS = ${totalColumnsPerRow};
+  const TARGET_KOLOM_KE = ${targetColumnIndex}; // Kolom ke-1, 2, 3, 4, 5...
 
-  ${logToConsole ? `console.log("%c[RAPOR AUTO-FILL] Memulai proses...", "background: #2563eb; color: #fff; padding: 4px 8px; border-radius: 4px; font-weight: bold;");` : ''}
+  ${isMultiBatch ? `const DATA_MULTI_KOLOM = ${multiColArrayString};` : `const daftarNilai = ${JSON.stringify(values)};`}
 
-  // Cari seluruh elemen input yang cocok
+  ${logToConsole ? `console.log("%c[RAPOR AUTO-FILL] Memulai proses otomatisasi...", "background: #2563eb; color: #fff; padding: 4px 8px; border-radius: 4px; font-weight: bold;");` : ''}
+
+  // 1. Cari seluruh elemen input pada halaman
   const allInputs = Array.from(document.querySelectorAll(TARGET_SELECTOR));
-  const inputElements = allInputs.slice(OFFSET_AWAL);
 
-  if (inputElements.length === 0) {
+  if (allInputs.length === 0) {
     console.error("%c[ERROR] Elemen input nilai tidak ditemukan! Pastikan halaman rapor sudah terbuka penuh dan selector cocok.", "color: #ef4444; font-weight: bold;");
     return;
   }
 
-  const jumlahTarget = Math.min(daftarNilai.length, inputElements.length);
-  ${logToConsole ? `console.log(\`%c[INFO] Ditemukan \${inputElements.length} kolom input. Akan mengisi \${jumlahTarget} siswa.\`, "color: #10b981;");` : ''}
+  ${logToConsole ? `console.log(\`%c[INFO] Ditemukan \${allInputs.length} total input di halaman. Melewati \${OFFSET_AWAL} input awal.\`, "color: #0284c7;");` : ''}
 
   const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-  // Bypass React/Vue/Angular synthetic event setter
+  // Fungsi pengisi nilai yang mendukung React/Vue Synthetic Event prototype
   function setInputValue(element, value) {
     let formattedVal = String(value);
     if (FORMAT_DESIMAL === 'comma') {
@@ -180,10 +240,7 @@ export function generateAutoFillScript(values: number[], options: ScriptOptions)
     }` : `element.value = formattedVal;`}
   }
 
-  for (let i = 0; i < jumlahTarget; i++) {
-    const el = inputElements[i];
-    const nilai = daftarNilai[i];
-
+  async function triggerInputEvents(el, nilai, labelInfo) {
     ${autoScroll ? `el.scrollIntoView({ behavior: 'smooth', block: 'center' });` : ''}
     ${triggerEvents.clickFocus ? `
     el.click();
@@ -204,10 +261,83 @@ export function generateAutoFillScript(values: number[], options: ScriptOptions)
     el.blur();
     el.dispatchEvent(new Event('blur', { bubbles: true }));` : ''}
 
-    ${logToConsole ? `console.log(\`✅ [\${i + 1}/\${jumlahTarget}] Nilai Siswa #\${i + 1}: \${nilai}\`);` : ''}
+    ${logToConsole ? `console.log(labelInfo);` : ''}
     await sleep(DELAY_MS);
   }
 
-  ${logToConsole ? `console.log("%c🎉 Selesai! Seluruh nilai (\${jumlahTarget} siswa) berhasil dimasukkan otomatis.", "background: #059669; color: #fff; padding: 6px 12px; border-radius: 4px; font-weight: bold; font-size: 13px;");` : ''}
+  // 2. Eksekusi pengisian berdasarkan mode
+  ${isMultiTarget ? `
+  // MODE: Isi Kolom Spesifik (Kolom ke-${targetColumnIndex} dari Total ${totalColumnsPerRow} kolom per siswa)
+  ${logToConsole ? `console.log(\`%c[TARGET] Mengisi Kolom ke-\${TARGET_KOLOM_KE} (Lompat setiap \${TOTAL_KOLOM_PER_BARIS} kolom per siswa). Kolom lain aman tidak disentuh!\`, "color: #10b981; font-weight: bold;");` : ''}
+
+  let filledCount = 0;
+  for (let i = 0; i < daftarNilai.length; i++) {
+    // Rumus stride jump: OFFSET_AWAL + (indeks_siswa * TOTAL_KOLOM) + (TARGET_KOLOM - 1)
+    const targetIdx = OFFSET_AWAL + (i * TOTAL_KOLOM_PER_BARIS) + (TARGET_KOLOM_KE - 1);
+
+    if (targetIdx >= allInputs.length) {
+      console.warn(\`%c[SELESAI/BATAS] Input ke-\${targetIdx + 1} tidak tersedia di halaman. Berhenti pada siswa #\${i}.\`, "color: #f59e0b;");
+      break;
+    }
+
+    const el = allInputs[targetIdx];
+    const nilai = daftarNilai[i];
+
+    await triggerInputEvents(
+      el,
+      nilai,
+      \`✅ [Siswa #\${i + 1}] Kolom #\${TARGET_KOLOM_KE} diisi: \${nilai} (Index DOM: \${targetIdx})\`
+    );
+    filledCount++;
+  }
+
+  ${logToConsole ? `console.log(\`%c🎉 Selesai! Berhasil mengisi \${filledCount} nilai pada Kolom ke-\${TARGET_KOLOM_KE}.\`, "background: #059669; color: #fff; padding: 6px 12px; border-radius: 4px; font-weight: bold; font-size: 13px;");` : ''}
+  ` : isMultiBatch ? `
+  // MODE: Batch Multi-Kolom Sekaligus
+  const maxStudents = Math.max(...DATA_MULTI_KOLOM.map(col => col.length));
+  ${logToConsole ? `console.log(\`%c[BATCH] Mengisi \${DATA_MULTI_KOLOM.length} kolom sekaligus untuk hingga \${maxStudents} siswa.\`, "color: #10b981; font-weight: bold;");` : ''}
+
+  let totalFilled = 0;
+  for (let s = 0; s < maxStudents; s++) {
+    for (let c = 0; c < DATA_MULTI_KOLOM.length && c < TOTAL_KOLOM_PER_BARIS; c++) {
+      const colData = DATA_MULTI_KOLOM[c];
+      const nilai = colData[s];
+
+      if (nilai === undefined || nilai === null || nilai === '') {
+        continue; // Lewati jika kolom ini kosong untuk siswa tertentu
+      }
+
+      const targetIdx = OFFSET_AWAL + (s * TOTAL_KOLOM_PER_BARIS) + c;
+      if (targetIdx >= allInputs.length) break;
+
+      const el = allInputs[targetIdx];
+      await triggerInputEvents(
+        el,
+        nilai,
+        \`✅ [Siswa #\${s + 1} | Kolom #\${c + 1}] Nilai: \${nilai}\`
+      );
+      totalFilled++;
+    }
+  }
+
+  ${logToConsole ? `console.log(\`%c🎉 Selesai! Berhasil mengisi \${totalFilled} sel nilai di semua kolom.\`, "background: #059669; color: #fff; padding: 6px 12px; border-radius: 4px; font-weight: bold; font-size: 13px;");` : ''}
+  ` : `
+  // MODE: 1 Kolom Sederhana (Sequential)
+  const inputElements = allInputs.slice(OFFSET_AWAL);
+  const jumlahTarget = Math.min(daftarNilai.length, inputElements.length);
+
+  for (let i = 0; i < jumlahTarget; i++) {
+    const el = inputElements[i];
+    const nilai = daftarNilai[i];
+
+    await triggerInputEvents(
+      el,
+      nilai,
+      \`✅ [\${i + 1}/\${jumlahTarget}] Nilai Siswa #\${i + 1}: \${nilai}\`
+    );
+  }
+
+  ${logToConsole ? `console.log(\`%c🎉 Selesai! Seluruh nilai (\${jumlahTarget} siswa) berhasil dimasukkan otomatis.\`, "background: #059669; color: #fff; padding: 6px 12px; border-radius: 4px; font-weight: bold; font-size: 13px;");` : ''}
+  `}
 })();`;
 }

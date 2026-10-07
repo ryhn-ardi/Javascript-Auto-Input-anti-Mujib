@@ -7,10 +7,10 @@ import {
   Table as TableIcon,
   Code as CodeIcon,
   Users,
-  TrendingUp,
-  BarChart3
+  Columns,
+  Sparkles
 } from 'lucide-react';
-import { ScoreItem, ScoreStats } from '../types';
+import { ScoreItem, ScoreStats, ScriptOptions } from '../types';
 import { ScorePreviewTable } from './ScorePreviewTable';
 
 interface ScriptOutputPanelProps {
@@ -18,6 +18,7 @@ interface ScriptOutputPanelProps {
   items: ScoreItem[];
   validScores: number[];
   stats: ScoreStats;
+  options: ScriptOptions;
   onOpenSimulator: () => void;
 }
 
@@ -26,6 +27,7 @@ export const ScriptOutputPanel: React.FC<ScriptOutputPanelProps> = ({
   items,
   validScores,
   stats,
+  options,
   onOpenSimulator,
 }) => {
   const [activeTab, setActiveTab] = useState<'code' | 'table'>('code');
@@ -48,7 +50,7 @@ export const ScriptOutputPanel: React.FC<ScriptOutputPanelProps> = ({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `rapor-autofill-${validScores.length}-siswa.js`;
+    a.download = `rapor-autofill-kolom-${options.targetColumnIndex}-${validScores.length}-siswa.js`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -70,6 +72,13 @@ export const ScriptOutputPanel: React.FC<ScriptOutputPanelProps> = ({
             <Users className="w-3.5 h-3.5" />
             {validScores.length} Siswa Terdeteksi
           </span>
+
+          {options.fillMode === 'single-target' && (
+            <span className="text-xs font-bold text-blue-300 bg-blue-950/80 px-2.5 py-1 rounded-full border border-blue-800/60 inline-flex items-center gap-1">
+              <Columns className="w-3 h-3 text-blue-400" />
+              Kolom #{options.targetColumnIndex} (dari {options.totalColumnsPerRow} Kolom)
+            </span>
+          )}
         </div>
 
         {/* View mode toggle */}

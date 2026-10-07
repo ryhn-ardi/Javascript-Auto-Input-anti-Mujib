@@ -5,9 +5,22 @@ export interface ScoreItem {
   isValid: boolean;
 }
 
+export type FillMode = 'single-target' | 'multi-columns' | 'sequential';
+
+export interface MultiColumnEntry {
+  id: string;
+  name: string;
+  rawText: string;
+  items: ScoreItem[];
+  validValues: number[];
+}
+
 export interface ScriptOptions {
   offset: number;
   delayMs: number;
+  fillMode: FillMode;
+  totalColumnsPerRow: number;
+  targetColumnIndex: number; // 1-based (1 = Kolom 1, 2 = Kolom 2, ...)
   customSelector: string;
   useCustomSelector: boolean;
   triggerEvents: {
@@ -30,3 +43,4 @@ export interface ScoreStats {
   validCount: number;
   invalidCount: number;
 }
+
