@@ -16,8 +16,10 @@ export default function App() {
     offset: 0,
     delayMs: 1500,
     fillMode: 'single-target',
+    targetingMethod: 'table-row', // Anti-meleset default
     totalColumnsPerRow: 3,
-    targetColumnIndex: 2, // Kolom ke-2 default (menjawab problem user)
+    targetColumnIndex: 2, // Kolom ke-2 default
+    highlightActiveCell: true, // Visual feedback di layar e-Rapor
     customSelector: '',
     useCustomSelector: false,
     triggerEvents: {
@@ -62,8 +64,10 @@ export default function App() {
       offset: 0,
       delayMs: 1500,
       fillMode: 'single-target',
+      targetingMethod: 'table-row',
       totalColumnsPerRow: 3,
       targetColumnIndex: 1,
+      highlightActiveCell: true,
       customSelector: '',
       useCustomSelector: false,
       triggerEvents: {

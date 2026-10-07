@@ -15,9 +15,11 @@ import {
   Check,
   AlertCircle,
   HelpCircle,
-  ArrowRight
+  Crosshair,
+  Sparkles,
+  Eye
 } from 'lucide-react';
-import { ScriptOptions, MultiColumnEntry, FillMode } from '../types';
+import { ScriptOptions, MultiColumnEntry, FillMode, TargetingMethod } from '../types';
 
 interface InputPanelProps {
   rawText: string;
@@ -40,6 +42,7 @@ export const InputPanel: React.FC<InputPanelProps> = ({
 }) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [activeMultiTab, setActiveMultiTab] = useState(0);
+  const [copiedTestSnippet, setCopiedTestSnippet] = useState(false);
 
   const applyPreset = (type: 'sample10' | 'comma' | 'full32' | 'multicolumn3') => {
     if (type === 'sample10') {
@@ -54,12 +57,9 @@ export const InputPanel: React.FC<InputPanelProps> = ({
       ].join('\n');
       setRawText(sample);
     } else if (type === 'multicolumn3') {
-      // 3 columns separated by tab (like copied from Excel)
       const col1 = [88, 92, 85, 90, 94, 87, 89, 93, 91, 86];
       const col2 = [90, 94, 88, 92, 96, 89, 91, 95, 93, 88];
       const col3 = [86, 90, 84, 88, 92, 85, 87, 91, 89, 84];
-      
-      const lines = col1.map((_, i) => `${col1[i]}\t${col2[i]}\t${col3[i]}`).join('\n');
       
       setOptions(prev => ({
         ...prev,
@@ -67,7 +67,6 @@ export const InputPanel: React.FC<InputPanelProps> = ({
         totalColumnsPerRow: 3,
       }));
 
-      // Update multi-column entries
       setMultiColumnEntries([
         { id: 'col_1', name: 'Kolom 1 (TP 1)', rawText: col1.join('\n'), items: [], validValues: col1 },
         { id: 'col_2', name: 'Kolom 2 (TP 2)', rawText: col2.join('\n'), items: [], validValues: col2 },
@@ -103,7 +102,6 @@ export const InputPanel: React.FC<InputPanelProps> = ({
       };
     });
 
-    // Ensure multiColumnEntries array matches the count
     setMultiColumnEntries(prev => {
       const updated = [...prev];
       while (updated.length < validTotal) {
@@ -133,6 +131,39 @@ export const InputPanel: React.FC<InputPanelProps> = ({
       fillMode: mode,
       totalColumnsPerRow: mode === 'sequential' ? 1 : Math.max(2, prev.totalColumnsPerRow),
     }));
+  };
+
+  const handleTargetingMethodChange = (method: TargetingMethod) => {
+    setOptions(prev => ({
+      ...prev,
+      targetingMethod: method,
+    }));
+  };
+
+  // Helper snippet for user to copy into Console to instantly test which cell is selected
+  const copyTestCheckerSnippet = () => {
+    const snippet = `// TEST CEK LOKASI SEL TARGET DI RAPOR
+(function testCekSel() {
+  const baris = Array.from(document.querySelectorAll('table tbody tr, table tr')).filter(r => r.querySelectorAll('input:not([type="hidden"])').length > 0);
+  if (baris.length === 0) {
+    console.error("❌ Baris tabel tidak ditemukan. Coba cek struktur halaman.");
+    return;
+  }
+  const siswa1 = baris[${options.offset}];
+  const kolom = Array.from(siswa1.querySelectorAll('input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"])'))[${options.targetColumnIndex - 1}];
+  if (kolom) {
+    kolom.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    kolom.style.outline = '4px solid #ef4444';
+    kolom.style.backgroundColor = '#fef2f2';
+    kolom.focus();
+    console.log("%c✅ LOKASI DITEMUKAN! Periksa kotak merah di layar Anda:", "background: #10b981; color: white; padding: 4px; font-weight: bold;", kolom);
+  } else {
+    console.warn("❌ Kolom ke-${options.targetColumnIndex} tidak ditemukan pada baris pertama!");
+  }
+})();`;
+    navigator.clipboard.writeText(snippet);
+    setCopiedTestSnippet(true);
+    setTimeout(() => setCopiedTestSnippet(false), 2000);
   };
 
   return (
@@ -272,6 +303,76 @@ export const InputPanel: React.FC<InputPanelProps> = ({
             </div>
           </div>
 
+          {/* 3. Step: Targeting Method (Anti-Meleset) */}
+          <div className="pt-1 border-t border-slate-800/80">
+            <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Crosshair className="w-3.5 h-3.5 text-blue-400" />
+                Metode Penargetan Lokasi Kolom:
+              </span>
+              <span className="text-[10px] text-emerald-400 font-medium">
+                {options.targetingMethod === 'table-row' ? 'Anti-Meleset Aktif' : 'Mode Flat'}
+              </span>
+            </label>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => handleTargetingMethodChange('table-row')}
+                className={`p-2.5 rounded-xl border text-left transition-all ${
+                  options.targetingMethod === 'table-row'
+                    ? 'bg-emerald-950/40 border-emerald-500/80 text-emerald-200 ring-1 ring-emerald-500/50'
+                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850'
+                }`}
+              >
+                <div className="font-bold text-xs flex items-center gap-1.5">
+                  <CheckCircle2 className={`w-3.5 h-3.5 ${options.targetingMethod === 'table-row' ? 'text-emerald-400' : 'text-slate-500'}`} />
+                  Deteksi Baris Tabel (Rekomendasi)
+                </div>
+                <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">
+                  Mencari baris siswa di dalam tabel. Baris 1 = Siswa 1. <strong>Kebal terhadap kolom pencarian di luar tabel!</strong>
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleTargetingMethodChange('flat-stride')}
+                className={`p-2.5 rounded-xl border text-left transition-all ${
+                  options.targetingMethod === 'flat-stride'
+                    ? 'bg-blue-950/40 border-blue-500/80 text-blue-200 ring-1 ring-blue-500/50'
+                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850'
+                }`}
+              >
+                <div className="font-bold text-xs flex items-center gap-1.5">
+                  <CheckCircle2 className={`w-3.5 h-3.5 ${options.targetingMethod === 'flat-stride' ? 'text-blue-400' : 'text-slate-500'}`} />
+                  Flat Index + Offset
+                </div>
+                <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">
+                  Membaca seluruh input dari atas ke bawah. Berguna jika halaman tidak memakai tabel HTML standar.
+                </p>
+              </button>
+            </div>
+          </div>
+
+          {/* Quick Inspector Snippet Helper */}
+          <div className="bg-slate-900/90 p-3 rounded-lg border border-slate-800 flex items-center justify-between gap-3 flex-wrap">
+            <div className="text-xs text-slate-300 flex items-center gap-2">
+              <Eye className="w-4 h-4 text-amber-400 shrink-0" />
+              <div>
+                <span className="font-semibold block text-slate-200">Cek Sel Target di Browser (Inspector):</span>
+                <span className="text-[11px] text-slate-400">Tandai kotak input Siswa 1 Kolom {options.targetColumnIndex} dengan bingkai merah di layar rapor Anda.</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={copyTestCheckerSnippet}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-800/50 flex items-center gap-1.5 transition-colors shrink-0"
+            >
+              {copiedTestSnippet ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Eye className="w-3.5 h-3.5" />}
+              {copiedTestSnippet ? 'Snippet Tes Tersalin!' : 'Copy Snippet Tes Cek Sel'}
+            </button>
+          </div>
+
           {/* Visual Stride Diagram */}
           <div className="bg-slate-900/90 p-3 rounded-lg border border-slate-800 text-xs">
             <div className="text-[10px] uppercase font-bold text-slate-400 mb-1 flex items-center gap-1">
@@ -311,7 +412,7 @@ export const InputPanel: React.FC<InputPanelProps> = ({
               </div>
             </div>
             <p className="text-[10px] text-emerald-400/90 mt-1.5 font-sans">
-              ✓ Nilai yang sudah ada di kolom 1 atau kolom lainnya tidak akan disentuh dan tidak akan tertimpa.
+              ✓ Menggunakan deteksi baris tabel langsung sehingga Siswa 1 baris pertama tidak akan tertukar atau meleset ke kolom pencarian.
             </p>
           </div>
         </div>
@@ -485,10 +586,10 @@ export const InputPanel: React.FC<InputPanelProps> = ({
           <div className="flex items-center justify-between mb-1.5">
             <label htmlFor="offsetInput" className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
               <Layers className="w-3.5 h-3.5 text-blue-400" />
-              Offset Input Teratas:
+              Offset Baris / Input Teratas:
             </label>
             <span className="text-[10px] text-slate-500 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
-              Skip header
+              {options.targetingMethod === 'table-row' ? 'Skip baris header' : 'Skip input'}
             </span>
           </div>
           <input
@@ -506,7 +607,9 @@ export const InputPanel: React.FC<InputPanelProps> = ({
             className="w-full bg-slate-900 border border-slate-700/80 rounded-lg p-2 text-sm text-center font-mono text-white focus:outline-none focus:border-blue-500"
           />
           <p className="text-[11px] text-slate-500 mt-1.5">
-            Jumlah kolom input di atas tabel yang dilewati (misal kolom pencarian). Default: 0 atau 3.
+            {options.targetingMethod === 'table-row'
+              ? 'Jika baris pertama tabel adalah judul atau filter, atur ke 1. Jika langsung siswa #1, biarkan 0.'
+              : 'Jumlah kolom input di atas tabel yang dilewati (misal search bar).'}
           </p>
         </div>
 
@@ -594,6 +697,28 @@ export const InputPanel: React.FC<InputPanelProps> = ({
 
         {showAdvanced && (
           <div className="p-4 pt-2 border-t border-slate-800/60 space-y-4 text-xs">
+            {/* Visual Highlight Option */}
+            <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-between">
+              <div>
+                <span className="font-semibold text-slate-200 block">Highlight Visual Hijau di Layar:</span>
+                <span className="text-[11px] text-slate-400">Memberikan garis bingkai hijau menyala pada sel yang sedang diisi di halaman rapor Anda.</span>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={options.highlightActiveCell}
+                  onChange={(e) =>
+                    setOptions((prev) => ({
+                      ...prev,
+                      highlightActiveCell: e.target.checked,
+                    }))
+                  }
+                  className="sr-only peer"
+                />
+                <div className="w-8 h-4 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-600"></div>
+              </label>
+            </div>
+
             {/* Decimal Format */}
             <div>
               <label className="block font-semibold text-slate-300 mb-1.5">

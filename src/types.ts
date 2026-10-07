@@ -6,6 +6,7 @@ export interface ScoreItem {
 }
 
 export type FillMode = 'single-target' | 'multi-columns' | 'sequential';
+export type TargetingMethod = 'table-row' | 'flat-stride';
 
 export interface MultiColumnEntry {
   id: string;
@@ -19,8 +20,10 @@ export interface ScriptOptions {
   offset: number;
   delayMs: number;
   fillMode: FillMode;
+  targetingMethod: TargetingMethod; // 'table-row' (Anti-Meleset) vs 'flat-stride'
   totalColumnsPerRow: number;
   targetColumnIndex: number; // 1-based (1 = Kolom 1, 2 = Kolom 2, ...)
+  highlightActiveCell: boolean; // Visual border on actual page while filling
   customSelector: string;
   useCustomSelector: boolean;
   triggerEvents: {
